@@ -13,6 +13,7 @@ import visualizerDataRoute from "./api/visualizerData.js";
 import systemRoutes from "./api/system.js";
 import { getLogsSnapshot } from "./controllers/logsController.js";
 import logsStatusRoute from "./api/logs.js";
+import scanRunRouter from "./api/scanRun.js";
 import { isRouterIP } from "./utils/networkHelpers.js"; // ✅ Router detection utility
 import LogsStatus from "./models/Log.js"; // ✅ Model for logs snapshot
 
@@ -31,6 +32,7 @@ app.use("/api/visualizer-data", visualizerDataRoute);
 app.use("/api", systemRoutes);
 app.use("/api/logs-status", logsStatusRoute);
 app.use("/api/usb", usbRoutes);
+app.use("/api/scan", scanRunRouter);
 
 app.get("/health", (_req, res) =>
   res.json({ status: "ok", ts: new Date().toISOString() })

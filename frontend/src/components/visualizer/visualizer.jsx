@@ -78,7 +78,7 @@ export default function Visualizer() {
       <Sidebar />
       <div className="visualizer-wrap">
         <div className="visualizer-header">
-          <h1>Network Floor Visualizer</h1>
+          <h1>Network Visualizer</h1>
           <FloorManager
             floors={floors}
             activeFloor={activeFloor}
