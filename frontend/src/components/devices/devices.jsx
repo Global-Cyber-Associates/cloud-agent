@@ -24,7 +24,7 @@ const Devices = () => {
       setLoading(false);
     });
 
-    // Listen for live updates (optional)
+    // Listen for live updates
     socket.on("agent_update", (updatedAgent) => {
       setAgents((prev) => {
         const idx = prev.findIndex((a) => a.agentId === updatedAgent.agentId);
@@ -78,6 +78,10 @@ const Devices = () => {
               </div>
 
               <div className="device-actions">
+                {/* 
+                --------------------------------------------------------
+                DISCONNECT BUTTON (COMMENTED OUT)
+                --------------------------------------------------------
                 <button
                   className="action-btn"
                   onClick={(e) => {
@@ -87,6 +91,8 @@ const Devices = () => {
                 >
                   Disconnect
                 </button>
+                --------------------------------------------------------
+                */}
 
                 <button
                   className="action-btn"
@@ -98,6 +104,10 @@ const Devices = () => {
                   Task Manager
                 </button>
 
+                {/* 
+                --------------------------------------------------------
+                SCAN BUTTON (COMMENTED OUT)
+                --------------------------------------------------------
                 <button
                   className="action-btn"
                   onClick={(e) => {
@@ -107,6 +117,8 @@ const Devices = () => {
                 >
                   Scan
                 </button>
+                --------------------------------------------------------
+                */}
 
                 <button
                   className="action-btn"
