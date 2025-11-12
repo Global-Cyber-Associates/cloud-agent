@@ -46,16 +46,24 @@ export default function FloorGrid({ floor, updateDevices }) {
   }, [cols]);
 
   // ✅ Improved router detection logic
-  const isRouterDevice = (ip) => {
-    if (!ip || ip === "N/A") return false;
-    return (
-      ip.endsWith(".0.1") ||
-      ip.endsWith(".1.1") ||
-      ip.endsWith(".254") ||
-      ip.endsWith(".1.254") ||
-      ip.endsWith(".0.254")
-    );
-  };
+ const isRouterDevice = (ip) => {
+  if (!ip) return false;
+  return (
+    ip.endsWith(".0.1") ||
+    ip.endsWith(".1.1") ||
+    ip.endsWith(".254") ||
+    ip.endsWith(".1.254") ||
+    ip.endsWith(".0.254") ||
+    ip.endsWith(".43.1") ||    // Android standard
+    ip.endsWith(".137.1") ||   // Windows hotspot
+    ip.endsWith(".2.1") ||     // macOS Internet Sharing
+    ip.endsWith(".10.1") ||    // iPhone hotspot
+    ip.endsWith(".248.1") ||   // Some Android hotspots (Jio, Airtel, etc.)
+    ip.endsWith(".225.1") ||   // Reliance Jio pattern
+    ip.endsWith(".42.129")     // Some MediaTek phones
+  );
+};
+
 
   const formatDevices = (data, colCount) => {
     return data.map((d, i) => {

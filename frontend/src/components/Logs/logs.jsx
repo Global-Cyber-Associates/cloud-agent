@@ -1,49 +1,131 @@
 import React, { useEffect, useState } from "react";
+import io from "socket.io-client";
 import "./logs.css";
 import Sidebar from "../navigation/sidenav.jsx";
 
-const backendUrl = import.meta.env.VITE_BACKEND_URL;
+const SOCKET_URL = "http://localhost:5000";
 
 const Logs = () => {
   const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchLogs = async () => {
-    try {
-      const res = await fetch(`${backendUrl}/logs`);
-      const data = await res.json();
-
-      if (data.success && Array.isArray(data.logs)) {
-        setLogs(data.logs);
-      } else {
-        console.warn("⚠ Unexpected response:", data);
-      }
-    } catch (err) {
-      console.error("❌ Error fetching logs:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    fetchLogs(); // initial fetch
-    const interval = setInterval(fetchLogs, 5000); // refresh every 5 sec
-    return () => clearInterval(interval);
-  }, []);
+    const socket = io(SOCKET_URL, { transports: ["websocket"] });
 
-  if (loading) return <div className="logs-page">Loading logs...</div>;
+    socket.on("connect", () => {
+      console.log("✅ Connected to logs socket");
+      setConnected(true);
+    });
+
+    socket.on("disconnect", () => {
+      console.warn("⚠️ Disconnected from logs socket");
+      setConnected(false);
+    });
+
+    // Receive snapshot from backend
+    socket.on("logs_status_update", (snapshot) => {
+      if (!snapshot) return;
+      const now = new Date(snapshot.timestamp).toLocaleString();
+      const newLogs = [];
+
+      // 🟢 Online agents — show agentId as Type
+      if (snapshot.activeAgentsList?.length > 0) {
+        snapshot.activeAgentsList.forEach((agent) => {
+          newLogs.push({
+            _id: Math.random().toString(36).substr(2, 9),
+            createdAt: snapshot.timestamp,
+            type: agent.agentId || "Unknown Agent",
+            actor: "System",
+            message: `${agent.agentId || "Unknown"} (${agent.ip || "No IP"}) is online.`,
+            metadata: {
+              hostname: agent.hostname || "-",
+              ip: agent.ip || "-",
+              lastSeen: agent.lastSeen || "-",
+            },
+          });
+        });
+      }
+
+      // 🔴 Offline agents — show agentId as Type
+      if (snapshot.offlineAgentsList?.length > 0) {
+        snapshot.offlineAgentsList.forEach((agent) => {
+          newLogs.push({
+            _id: Math.random().toString(36).substr(2, 9),
+            createdAt: snapshot.timestamp,
+            type: agent.agentId || "Unknown Agent",
+            actor: "System",
+            message: `${agent.agentId || "Unknown"} is offline.`,
+            metadata: {
+              hostname: agent.hostname || "-",
+              ip: agent.ip || "-",
+            },
+          });
+        });
+      }
+
+      // ⚠️ Unknown Devices
+      if (snapshot.unknownDevices?.length > 0) {
+        snapshot.unknownDevices.forEach((dev) => {
+          newLogs.push({
+            _id: Math.random().toString(36).substr(2, 9),
+            createdAt: dev.createdAt || snapshot.timestamp,
+            type: dev.ip || "Unknown Device",
+            actor: "Network Scanner",
+            message: `Unknown device detected → ${dev.ip}`,
+            metadata: {
+              hostname: dev.hostname || "Unknown",
+              vendor: dev.vendor || "Unknown",
+            },
+          });
+        });
+      }
+
+      // 🧠 Server Status
+      newLogs.push({
+        _id: Math.random().toString(36).substr(2, 9),
+        createdAt: snapshot.timestamp,
+        type: "Server",
+        actor: "Backend",
+        message: `Server is ${snapshot.serverStatus?.toUpperCase() || "UNKNOWN"}`,
+        metadata: {},
+      });
+
+      // Keep last 100 logs only
+      setLogs((prev) => [...prev, ...newLogs].slice(-100));
+    });
+
+    return () => socket.disconnect();
+  }, []);
 
   return (
     <div className="logs-page">
       <Sidebar />
       <div className="logs-container">
-        <h1 className="logs-title">System Activity Logs</h1>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "10px",
+          }}
+        >
+          <h1 className="logs-title">System Activity Logs</h1>
+          <span
+            style={{
+              fontWeight: "600",
+              color: connected ? "#00ff9d" : "#ff5757",
+              fontSize: "14px",
+            }}
+          >
+            {connected ? "● Live" : "● Disconnected"}
+          </span>
+        </div>
 
         <table className="logs-table">
           <thead>
             <tr>
               <th>Time</th>
-              <th>Type</th>
+              <th>Agent ID</th>
               <th>Actor</th>
               <th>Message</th>
               <th>Metadata</th>
@@ -53,7 +135,7 @@ const Logs = () => {
             {logs.length === 0 ? (
               <tr>
                 <td colSpan="5" style={{ textAlign: "center", opacity: 0.6 }}>
-                  No logs found
+                  Waiting for live logs...
                 </td>
               </tr>
             ) : (
