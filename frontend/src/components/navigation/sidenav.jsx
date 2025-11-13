@@ -3,6 +3,8 @@ import { NavLink } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import "./sidenav.css";
 
+import Logo from "../../../public/gca.png"; 
+
 const Sidebar = ({ onToggle }) => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -17,11 +19,9 @@ const Sidebar = ({ onToggle }) => {
   ];
 
   useEffect(() => {
-    // Notify parent when sidebar toggles
     if (onToggle) onToggle(isOpen);
   }, [isOpen, onToggle]);
 
-  // Auto-close for small screens
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) setIsOpen(false);
@@ -39,7 +39,11 @@ const Sidebar = ({ onToggle }) => {
       </button>
 
       <aside className={`sidebar ${isOpen ? "open" : "closed"}`}>
-        <h2 className="sidebar-title">Control Panel</h2>
+        {/* Company logo and name */}
+        <div className="sidebar-header">
+          <img src={Logo} alt="Global Cyber Associates" className="sidebar-logo" />
+          <h1 className="company-name">Global Cyber Associates</h1>
+        </div>
         <ul className="sidebar-nav">
           {navItems.map((item, idx) => (
             <li key={idx}>
