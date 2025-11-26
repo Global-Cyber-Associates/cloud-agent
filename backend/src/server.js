@@ -1,3 +1,4 @@
+//backend/src/server.js
 import express from "express";
 import http from "http";
 import cors from "cors";
@@ -5,6 +6,9 @@ import fs from "fs";
 import path from "path";
 import { Server } from "socket.io";
 import { connectMongo } from "./db.js";
+
+import dotenv from "dotenv";
+dotenv.config();
 
 import { saveAgentData, saveNetworkScan } from "./save.js";
 import { runVisualizerUpdate } from "./visualizer-script/visualizer.js";
@@ -19,6 +23,10 @@ import logsStatusRoute from "./api/logs.js";
 import scanRunRouter from "./api/scanRun.js";
 import { isRouterIP } from "./utils/networkHelpers.js";
 import LogsStatus from "./models/Log.js";
+import authRoutes from "./api/auth.js";
+import userRoutes from "./api/users.js";
+
+
 
 const configPath = path.resolve("./config.json");
 const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
@@ -32,6 +40,10 @@ app.use("/api", systemRoutes);
 app.use("/api/logs-status", logsStatusRoute);
 app.use("/api/usb", usbRoutes);
 app.use("/api/scan", scanRunRouter);
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.get("/api/auth/debug", (req, res) => res.json({ msg: "AUTH ROUTES ACTIVE" }));
+
 
 app.get("/health", (_req, res) =>
   res.json({ status: "ok", ts: new Date().toISOString() })

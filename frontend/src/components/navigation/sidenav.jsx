@@ -3,13 +3,17 @@ import { NavLink } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import "./sidenav.css";
 
-import Logo from "../../../public/gca.png"; 
+import Logo from "../../../public/gca.png";
+import { getRole } from "../../utils/authService"; // ⭐ IMPORT ROLE
 
 const Sidebar = ({ onToggle }) => {
   const [isOpen, setIsOpen] = useState(true);
 
-  const navItems = [
-    { label: "Dashboard", path: "/" },
+  const role = getRole(); // ⭐ CHECK USER ROLE (admin/user)
+
+  // ⭐ USER MENU ITEMS
+  const userNavItems = [
+    { label: "Dashboard", path: "/dashboard" },
     { label: "Visualizer", path: "/visualizer" },
     { label: "Devices", path: "/devices" },
     { label: "USB Control", path: "/usb" },
@@ -18,10 +22,18 @@ const Sidebar = ({ onToggle }) => {
     { label: "Features", path: "/features" },
   ];
 
+  // ⭐ ADMIN MENU ITEMS
+  const adminNavItems = [
+    { label: "Admin Dashboard", path: "/admin/dashboard" },
+    { label: "Manage Users", path: "/admin/users" },
+    { label: "Create User", path: "/admin/create-user" },
+  ];
+
   useEffect(() => {
     if (onToggle) onToggle(isOpen);
   }, [isOpen, onToggle]);
 
+  // Responsive collapse
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) setIsOpen(false);
@@ -34,18 +46,42 @@ const Sidebar = ({ onToggle }) => {
 
   return (
     <>
+      {/* Toggle Button */}
       <button className="sidebar-toggle" onClick={() => setIsOpen(!isOpen)}>
         {isOpen ? <X size={22} /> : <Menu size={22} />}
       </button>
 
       <aside className={`sidebar ${isOpen ? "open" : "closed"}`}>
-        {/* Company logo and name */}
+        {/* Logo */}
         <div className="sidebar-header">
-          <img src={Logo} alt="Global Cyber Associates" className="sidebar-logo" />
+          <img
+            src={Logo}
+            alt="Global Cyber Associates"
+            className="sidebar-logo"
+          />
           <h1 className="company-name">Global Cyber Associates</h1>
         </div>
+
         <ul className="sidebar-nav">
-          {navItems.map((item, idx) => (
+          {/* ⭐ ADMIN MENU (ONLY IF ROLE === "admin") */}
+          {role === "admin" &&
+            adminNavItems.map((item, idx) => (
+              <li key={idx}>
+                <NavLink
+                  to={item.path}
+                  onClick={() => window.innerWidth < 768 && setIsOpen(false)}
+                  className={({ isActive }) =>
+                    isActive ? "nav-link active" : "nav-link"
+                  }
+                  end
+                >
+                  {item.label}
+                </NavLink>
+              </li>
+            ))}
+
+          {/* ⭐ USER MENU (VISIBLE FOR BOTH admin + user) */}
+          {userNavItems.map((item, idx) => (
             <li key={idx}>
               <NavLink
                 to={item.path}

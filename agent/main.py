@@ -103,4 +103,4 @@ if __name__ == "__main__":
     # AGENT SCANS
     while True:
         run_scans()
-        time.sleep(5)
+        time.sleep(300)
