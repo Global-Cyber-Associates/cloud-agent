@@ -1,14 +1,40 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import "./dashboard.css";
 import Sidebar from "../navigation/sidenav.jsx";
 
-// ✅ Correct env var
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+const vizFingerprint = (d) => {
+  const t = d.createdAt || d.created_at || d.timestamp || "";
+  return `${d.ip || ""}::${String(t)}`;
+};
+
+const sysFingerprint = (s) => {
+  const data = s.data || s;
+  const hostname = data.hostname || "";
+  const ip =
+    data.ip ||
+    data.address ||
+    (data.wlan_info && data.wlan_info[0]?.address) ||
+    "";
+  return `${hostname}::${ip}`;
+};
 
 const Dashboard = () => {
   const [visualizerData, setVisualizerData] = useState([]);
   const [systemInfo, setSystemInfo] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
+
+  const mountedRef = useRef(true);
+  const prevVizFingerRef = useRef("");
+  const prevSysFingerRef = useRef("");
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const parseDate = (v) => {
     if (!v) return null;
@@ -20,6 +46,98 @@ const Dashboard = () => {
     }
     return new Date(v);
   };
+
+  useEffect(() => {
+    let intervalId = null;
+    let ongoing = null;
+
+    const fetchData = async () => {
+      try {
+        if (ongoing) ongoing.abort();
+
+        const controller = new AbortController();
+        ongoing = controller;
+
+        const [vizRes, sysRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/visualizer-data`, {
+            signal: controller.signal,
+          }),
+          fetch(`${BACKEND_URL}/api/system`, {
+            signal: controller.signal,
+          }),
+        ]);
+
+        if (!vizRes.ok || !sysRes.ok)
+          throw new Error("Failed fetching dashboard data");
+
+        const [vizRaw, sysRaw] = await Promise.all([
+          vizRes.json(),
+          sysRes.json(),
+        ]);
+
+        const vizData = Array.isArray(vizRaw) ? vizRaw : [];
+        const systemArr = Array.isArray(sysRaw) ? sysRaw : [];
+
+        const latestVisualizer = Object.values(
+          vizData.reduce((acc, d) => {
+            const ip = d.ip;
+            if (!ip) return acc;
+
+            const existing = acc[ip];
+            const newDate = parseDate(
+              d.createdAt || d.created_at || d.timestamp
+            );
+            const existingDate =
+              existing && parseDate(existing.createdAt || existing.timestamp);
+
+            if (
+              !existing ||
+              (newDate && existingDate && newDate > existingDate) ||
+              (newDate && !existingDate)
+            )
+              acc[ip] = d;
+            return acc;
+          }, {})
+        );
+
+        const vizFinger = latestVisualizer
+          .map((v) => vizFingerprint(v))
+          .sort()
+          .join("|");
+
+        const sysFinger = systemArr
+          .map((s) => sysFingerprint(s))
+          .sort()
+          .join("|");
+
+        if (mountedRef.current && vizFinger !== prevVizFingerRef.current) {
+          setVisualizerData(latestVisualizer);
+          prevVizFingerRef.current = vizFinger;
+        }
+
+        if (mountedRef.current && sysFinger !== prevSysFingerRef.current) {
+          setSystemInfo(systemArr);
+          prevSysFingerRef.current = sysFinger;
+        }
+
+        if (mountedRef.current) setLastUpdated(new Date());
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          console.error("Dashboard fetch error:", err);
+        }
+      } finally {
+        ongoing = null;
+      }
+    };
+
+    fetchData();
+    intervalId = setInterval(fetchData, 3000);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      if (ongoing) ongoing.abort();
+    };
+  }, []);
 
   const getAgentIPs = (sys) => {
     if (!sys) return [];
@@ -36,118 +154,66 @@ const Dashboard = () => {
     return Array.from(new Set(ipCandidates));
   };
 
-  // ===================================================================
-  //                        FETCH LOOP
-  // ===================================================================
-  useEffect(() => {
-    let mounted = true;
-
-    const fetchData = async () => {
-      try {
-        // ❗ FIXED — Correct env variable usage
-        const [vizRes, sysRes] = await Promise.all([
-          fetch(`${BACKEND_URL}/api/visualizer-data`),
-          fetch(`${BACKEND_URL}/api/system`),
-        ]);
-
-        if (!vizRes.ok || !sysRes.ok) throw new Error("Failed to fetch data");
-
-        const [vizRaw, sysRaw] = await Promise.all([
-          vizRes.json(),
-          sysRes.json(),
-        ]);
-
-        const vizData = Array.isArray(vizRaw) ? vizRaw : [];
-
-        const latestVisualizer = Object.values(
-          vizData.reduce((acc, d) => {
-            const ip = d.ip;
-            if (!ip) return acc;
-            const existing = acc[ip];
-            const newDate = parseDate(d.createdAt || d.created_at || d.timestamp);
-            const existingDate =
-              existing && parseDate(existing.createdAt || existing.timestamp);
-            if (
-              !existing ||
-              (newDate && existingDate && newDate > existingDate) ||
-              (newDate && !existingDate)
-            )
-              acc[ip] = d;
-            return acc;
-          }, {})
-        );
-
-        const systemArr = Array.isArray(sysRaw) ? sysRaw : [];
-
-        if (!mounted) return;
-
-        setVisualizerData(latestVisualizer);
-        setSystemInfo(systemArr);
-        setLastUpdated(new Date());
-      } catch (err) {
-        console.error("Error fetching dashboard data:", err);
-      }
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 1000);
-
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, []);
-
-  // ===================================================================
-  //                        DEVICE PROCESSING
-  // ===================================================================
-  const agentIPs = Array.from(new Set(systemInfo.flatMap((s) => getAgentIPs(s))));
-
-  const activeAgents = visualizerData.filter(
-    (d) => !d.noAgent && agentIPs.includes(d.ip)
+  const agentIPs = useMemo(
+    () => Array.from(new Set(systemInfo.flatMap((s) => getAgentIPs(s)))),
+    [systemInfo]
   );
 
-  const inactiveAgents = systemInfo.filter((sys) => {
-    const ips = getAgentIPs(sys);
-    if (ips.length === 0) return false;
-    return !ips.some((ip) => visualizerData.some((v) => v.ip === ip));
-  });
+  const activeAgents = useMemo(
+    () => visualizerData.filter((d) => !d.noAgent && agentIPs.includes(d.ip)),
+    [visualizerData, agentIPs]
+  );
 
-  const unmanagedDevices = visualizerData.filter((d) => d.noAgent === true);
+  const inactiveAgents = useMemo(
+    () =>
+      systemInfo.filter((sys) => {
+        const ips = getAgentIPs(sys);
+        if (ips.length === 0) return false;
+        return !ips.some((ip) => visualizerData.some((v) => v.ip === ip));
+      }),
+    [systemInfo, visualizerData]
+  );
+
+  const unmanagedDevices = useMemo(
+    () => visualizerData.filter((d) => d.noAgent === true),
+    [visualizerData]
+  );
 
   const ROUTER_IP_ENDINGS = [1, 250, 253, 254];
 
-  const routers = unmanagedDevices.filter((d) => {
-    if (!d.ip) return false;
-    const lastOctet = Number(d.ip.split(".")[3]);
+  const routers = useMemo(() => {
+    return unmanagedDevices.filter((d) => {
+      if (!d.ip) return false;
 
-    if (ROUTER_IP_ENDINGS.includes(lastOctet) && agentIPs.length === 0)
-      return true;
+      const lastOctet = Number(d.ip.split(".")[3]);
 
-    if (ROUTER_IP_ENDINGS.includes(lastOctet) && agentIPs.length > 0) {
-      const subnet = d.ip.split(".").slice(0, 3).join(".");
-      const agentSubnetMatch = agentIPs.some(
-        (aip) => aip.split(".").slice(0, 3).join(".") === subnet
-      );
-      return agentSubnetMatch;
-    }
-    return false;
-  });
+      if (ROUTER_IP_ENDINGS.includes(lastOctet) && agentIPs.length === 0)
+        return true;
 
-  const unknownDevices = unmanagedDevices.filter(
-    (d) => !routers.some((r) => r.ip === d.ip)
+      if (ROUTER_IP_ENDINGS.includes(lastOctet) && agentIPs.length > 0) {
+        const subnet = d.ip.split(".").slice(0, 3).join(".");
+        const agentSubnetMatch = agentIPs.some(
+          (aip) => aip.split(".").slice(0, 3).join(".") === subnet
+        );
+        return agentSubnetMatch;
+      }
+      return false;
+    });
+  }, [unmanagedDevices, agentIPs]);
+
+  const unknownDevices = useMemo(
+    () => unmanagedDevices.filter((d) => !routers.some((r) => r.ip === d.ip)),
+    [unmanagedDevices, routers]
   );
 
-  const allDevices = visualizerData.filter(
-    (d) => !routers.some((r) => r.ip === d.ip)
+  const allDevices = useMemo(
+    () => visualizerData.filter((d) => !routers.some((r) => r.ip === d.ip)),
+    [visualizerData, routers]
   );
 
   const findSystemByIp = (ip) =>
     systemInfo.find((s) => getAgentIPs(s).includes(ip));
 
-  // ===================================================================
-  //                        RENDER
-  // ===================================================================
   return (
     <div className="dashboard">
       <Sidebar />
@@ -211,8 +277,9 @@ const Dashboard = () => {
                     <td>{d.hostname || "-"}</td>
                     <td>{d.noAgent ? "No" : "Yes"}</td>
                     <td>
-                      {parseDate(d.createdAt || d.timestamp)?.toLocaleString() ||
-                        "-"}
+                      {parseDate(
+                        d.createdAt || d.timestamp
+                      )?.toLocaleString() || "-"}
                     </td>
                   </tr>
                 ))}
