@@ -245,12 +245,12 @@ async function start() {
     await connectMongo(config.mongo_uri);
     console.log("✅ MongoDB connected");
 
-    setInterval(runVisualizerUpdate, 500);
+    setInterval(runVisualizerUpdate, 3500);
 
     // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     // ⭐ START DASHBOARD WORKER AFTER MONGO CONNECTION
     // Runs every 1.5 seconds (adjustable)
-    runDashboardWorker(1500);
+    runDashboardWorker(4500);
     console.log("📊 Dashboard Worker running...");
     // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
